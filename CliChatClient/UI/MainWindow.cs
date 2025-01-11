@@ -30,7 +30,7 @@ namespace CliChatClient.UI
         private StringBuilder stringBuilder = new StringBuilder();
         private int scrollPosition = 0;
 
-        private bool toBeUpdated = false;
+        private bool toBeUpdated = true;
         private bool messagesToBeRerendered = true;
         private bool inputToBeRerendered = true;
         private bool warningsToBeRendered = true;
@@ -62,9 +62,7 @@ namespace CliChatClient.UI
 
             scrollPosition = messages.Count - 1;
 
-            // Register the custom Ctrl+C handler
-            Console.CancelKeyPress += new ConsoleCancelEventHandler(CancelKeyHandler);
-            Console.SetBufferSize(Console.BufferWidth * 4, Console.BufferHeight * 4);
+            //Console.SetBufferSize(Console.BufferWidth * 4, Console.BufferHeight * 4);
             Console.CursorVisible = false;
 
             Console.Clear();
@@ -196,6 +194,8 @@ namespace CliChatClient.UI
                 DisplayInputBar();
                 inputToBeRerendered = false;
             }
+
+            Console.SetCursorPosition(0, height - 1);
         }
 
         // Display the warnings and errors at the top
@@ -212,6 +212,7 @@ namespace CliChatClient.UI
             Console.WriteLine($"{warning}");
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"{error}");
+            Console.ResetColor();
         }
 
         // Display the scrollable messages in the center
@@ -268,18 +269,6 @@ namespace CliChatClient.UI
             //Printing
             Console.SetCursorPosition(0, height - 2); // Position at the bottom
             Console.Write("message -> {username} {message}: " + stringBuilder.ToString());
-        }
-
-        // Handle Ctrl+C to perform custom cleanup
-        private void CancelKeyHandler(object sender, ConsoleCancelEventArgs args)
-        {
-            // Ignore the default Ctrl+C behavior
-            args.Cancel = true;
-
-            // Perform your custom cleanup
-            Console.Clear();
-            Console.WriteLine("Goodbye! Cleaning up...");
-            Environment.Exit(0);
         }
 
         private void InitSpaces()

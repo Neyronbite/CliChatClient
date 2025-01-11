@@ -20,12 +20,15 @@ namespace CliChatClient.UI
                 switch(key.Key)
                 {
                     case ConsoleKey.Backspace:
-                        sb.Remove(sb.Length - 2, 1);
+                        if (sb.Length > 0)
+                        {
+                            sb.Remove(sb.Length - 1, 1);
+                        }
                         break;
                     case ConsoleKey.Enter:
                         break;
                     default:
-                        sb.Append(key.Key);
+                        sb.Append(key.KeyChar);
                         break;
                 }
             }
@@ -39,37 +42,6 @@ namespace CliChatClient.UI
         {
             Console.Write(messageBeforePass + ": ");
             return ReadPass();
-        }
-
-        public static string ReadOnXY(int x, int y)
-        {
-            var sb = new StringBuilder();
-            ConsoleKeyInfo key;
-
-            do
-            {
-                if (!Console.KeyAvailable)
-                {
-                    continue;
-                }
-                key = Console.ReadKey(true);
-
-                switch(key.Key)
-                {
-                    case ConsoleKey.Backspace:
-                        sb.Remove(sb.Length - 2, 1);
-                        break;
-                    case ConsoleKey.Enter:
-                        break;
-                    default:
-                        sb.Append(key.Key);
-                        break;
-                }
-            }
-            // Stops Receving Keys Once Enter is Pressed
-            while (true);
-
-            return sb.ToString();
         }
     }
 }

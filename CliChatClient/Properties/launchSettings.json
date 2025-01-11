@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CliChatClient": {
+      "commandName": "Project",
+      "commandLineArgs": "-l -u string1 -s a"
+    }
+  }
+}

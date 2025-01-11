@@ -8,11 +8,16 @@ using System.Threading.Tasks;
 
 namespace CliChatClient.Services
 {
-    public class MessageService
+    public class MessageService : IAsyncDisposable
     {
         HubConnection _connection;
 
         string _baseUrl;
+
+        public async ValueTask DisposeAsync()
+        {
+            await _connection.StopAsync();
+        }
 
         public async void Init(string baseUrl, string jwtToken, Action<string, string> handleMessageReceive)
         {
@@ -31,6 +36,7 @@ namespace CliChatClient.Services
             // Define the handler for receiving messages
             _connection.On<string, string>("ReceiveMessage", (user, message) =>
             {
+                //TODO message validation, encryption
                 handleMessageReceive(user, message);
             });
             _connection.On<string, KeyExchangeModel>("KeyExchange", (user, keyExchange) =>
@@ -41,6 +47,14 @@ namespace CliChatClient.Services
             //TODO KeyExchangeHandler
 
             await _connection.StartAsync();
+        }
+
+        public async Task SendMessage(string user, string message)
+        {
+            //TODO errors
+            //TODO encryption
+            //TODO key exchange
+            await _connection.InvokeAsync("SendMessage", message, user);
         }
     }
 }
