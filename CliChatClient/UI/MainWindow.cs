@@ -30,6 +30,7 @@ namespace CliChatClient.UI
         private StringBuilder stringBuilder = new StringBuilder();
         private int scrollPosition = 0;
 
+        // update indicators
         private bool toBeUpdated = true;
         private bool messagesToBeRerendered = true;
         private bool inputToBeRerendered = true;

@@ -37,7 +37,7 @@ namespace CliChatClient.Services
         public bool Login { get; set; }
         [Option('r', "register", Required = false, HelpText = "To initiate register request")]
         public bool Register { get; set; }
-        [Option('u', "username", Required = true, HelpText = "your username")]
+        [Option('u', "username", Required = true, HelpText = "your username, minimal length is 6 characters")]
         public string Username { get; set; }
         [Option('s', "server", Required = true, HelpText = "server's ip and port: 1.1.1.1:5000")]
         public string Server { get; set; }

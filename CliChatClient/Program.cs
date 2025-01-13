@@ -30,38 +30,60 @@ mainWin.Init(messages, m =>
 });
 */
 
+// Parsing arguments 
 var argParser = new ArgumentParser();
 var options = argParser.Parse(args);
 
+// credentials
 string username = string.Empty;
 string password = string.Empty;
 
-string baseUrl = @"https://localhost:7183";
+// base url from server
+//string baseUrl = @"https://localhost:7183";
+string baseUrl = string.Empty;
+// authentication jwt token
 string token = string.Empty;
 
+//main services
 var httpService = new HTTPService(baseUrl);
-var messageService = new MessageService();
 var dataAccess = new DataAccess();
+var messageService = new MessageService(dataAccess);
 var mainWin = new MainWindow();
 
+// finalization function, that closes connection to server, saves db's etc
+Action finalizingAction = async () =>
+{
+    Console.WriteLine("Finalizing");
+    await messageService.DisposeAsync();
+    Console.WriteLine("Disconnected from SignalR hub");
+    Environment.Exit(0);
+};
+
+//TODO welcome text
+
+// operations on parsed arguments
 try
 {
     if (options.Register)
     {
+        // getting password for registration
         var passwordRepeat = string.Empty;
         do
         {
             Console.WriteLine();
             password = Inputs.ReadPass("Enter Password");
             Console.WriteLine();
-            passwordRepeat = Inputs.ReadPass("Enter Password to verify");
+            passwordRepeat = Inputs.ReadPass("Enter Password again");
+
             if (passwordRepeat != password)
             {
                 Console.WriteLine("Passwords dont match");
             }
         } while (string.IsNullOrEmpty(password) || password != passwordRepeat);
 
+        // generating public and private RSA keys for key exchannge
         var keys = RSAEncryptionHelper.GenerateKeys();
+        // getting token
         token = await httpService.Register(username, password, keys.publicKey);
 
         Console.WriteLine();
@@ -70,6 +92,8 @@ try
     else if (options.Login)
     {
         password = Inputs.ReadPass("Enter Password");
+
+        // getting token
         token = await httpService.Authenticate(options.Username, password);
 
         Console.WriteLine();
@@ -77,7 +101,7 @@ try
     }
 
     username = options.Username;
-    //baseUrl = options.Server;
+    baseUrl = $"https://{options.Server}";
 }
 catch (Exception e)
 {
@@ -88,17 +112,18 @@ catch (Exception e)
 }
 
 // Register the custom Ctrl+C handler
-Console.CancelKeyPress += new ConsoleCancelEventHandler(async (sender, e) => {
-    Console.WriteLine("Finalizing");
-    await messageService.DisposeAsync();
-    Console.WriteLine("Disconnected from SignalR hub");
-    Environment.Exit(0);
-});
+// It overrides default program closing, and finalizing things
+Console.CancelKeyPress += new ConsoleCancelEventHandler((sender, e) => { finalizingAction(); });
 
 try
 {
+    //Initializing local database access class
+    await dataAccess.Init();
+
+    // Initializing signal r communication service
+    messageService.Init(baseUrl, token,
     //Handling received message delivering to UI
-    messageService.Init(baseUrl, token, (u, m) =>
+    (u, m) =>
     {
         var message = new MessageModel()
         {
@@ -113,21 +138,31 @@ try
     //TODO get queued messages from server
     var messages = new List<MessageModel>();
 
+    //Initializing main UI class
+    mainWin.Init(messages,
     //Handling message taken from UI deliver to MessageService
-    mainWin.Init(messages, async m =>
+    async m =>
     {
         if (string.IsNullOrWhiteSpace(m))
         {
             mainWin.SetWarning("Empty string input!!!");
+            return;
         }
 
-        //TODO validate m
-        var mArr = m.Split(' ');
-        var to = mArr[0];
-        var message = m.Replace(to + " ", "");
-        await messageService.SendMessage(to, message);
+        try
+        {
+            //TODO validate m
+            var mArr = m.Split(' ');
+            var to = mArr[0];
+            var message = m.Replace(to + " ", "");
+            await messageService.SendMessage(to, message);
 
-        mainWin.AddMessage(new MessageModel() { From = username, To = to, Message = m });
+            mainWin.AddMessage(new MessageModel() { From = username, To = to, Message = m });
+        }
+        catch (Exception e)
+        {
+            mainWin.SetError("Invalid message format");
+        }
     });
 }
 catch (Exception e)
@@ -137,10 +172,7 @@ catch (Exception e)
 }
 finally
 {
-    Console.WriteLine("Finalizing");
-    await messageService.DisposeAsync();
-    Console.WriteLine("Disconnected from SignalR hub");
-    Environment.Exit(0);
+    finalizingAction();
 }
 
 // Handle Ctrl+C to perform custom cleanup

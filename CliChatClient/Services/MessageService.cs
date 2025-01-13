@@ -1,4 +1,5 @@
-﻿using CliChatClient.Models;
+﻿using CliChatClient.Data;
+using CliChatClient.Models;
 using Microsoft.AspNetCore.SignalR.Client;
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,13 @@ namespace CliChatClient.Services
         HubConnection _connection;
 
         string _baseUrl;
+
+        DataAccess _dataAccess;
+
+        public MessageService(DataAccess dataAccess)
+        {
+            _dataAccess = dataAccess;
+        }
 
         public async ValueTask DisposeAsync()
         {
