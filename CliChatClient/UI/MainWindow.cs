@@ -38,6 +38,7 @@ namespace CliChatClient.UI
 
         public MainWindow()
         {
+            //main colors
             colorList = new List<ConsoleColor>()
             {
                 //ConsoleColor.Red,

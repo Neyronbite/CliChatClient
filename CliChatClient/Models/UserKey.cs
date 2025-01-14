@@ -15,5 +15,9 @@ namespace CliChatClient.Models
         /// contains all symetric keys of each chat
         /// </summary>
         public Dictionary<string, string> UsersSymetricKeys { get; set; }
+        /// <summary>
+        /// contains user's public RSA keys
+        /// </summary>
+        public Dictionary<string, string> UsersPublicKeys { get; set; }
     }
 }

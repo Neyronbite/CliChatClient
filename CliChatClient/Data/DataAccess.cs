@@ -12,12 +12,12 @@ namespace CliChatClient.Data
         // Database for storing user's data, including private, public keys, and other exchanged keys
         public AsynJsonDictionaryFile<UserKey> UserKey { get; set; }
 
-        private readonly string basePath;
+        Context _context;
 
-        public DataAccess()
+        public DataAccess(Context context)
         {
-            basePath = Directory.GetCurrentDirectory();
-            UserKey = new AsynJsonDictionaryFile<UserKey>(basePath + "/userKey.json");
+            _context = context;
+            UserKey = new AsynJsonDictionaryFile<UserKey>(context.BasePath + "/userKey.json");
         }
 
         public async Task Init()

@@ -12,13 +12,9 @@ namespace CliChatClient.Services
         public Options Parse(string[] args)
         {
             var optionsRes = Parser.Default.ParseArguments<Options>(args)
+                    // options validation
                    .WithParsed<Options>(o =>
                    {
-                       //if (string.IsNullOrEmpty(o.Username))
-                       //{
-                       //    Console.WriteLine($"Cant login and register at the same time");
-
-                       //}
                        if (o.Login && o.Register)
                        {
                            Console.WriteLine($"Cant login and register at the same time");
@@ -27,6 +23,9 @@ namespace CliChatClient.Services
                        {
                            Console.WriteLine($"--login or --register flags needed");
                        }
+
+                       //TODO server validation
+                       //TODO username validation
                    });
             return optionsRes.Value;
         }
@@ -41,7 +40,5 @@ namespace CliChatClient.Services
         public string Username { get; set; }
         [Option('s', "server", Required = true, HelpText = "server's ip and port: 1.1.1.1:5000")]
         public string Server { get; set; }
-        //[Option('h', "help", Required = false, HelpText = "shows help text")]
-        public bool Help { get; set; }
     }
 }

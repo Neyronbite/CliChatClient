@@ -8,6 +8,9 @@ namespace CliChatClient.Models
 {
     public class KeyExchangeModel
     {
-        //TODO
+        public bool NewKeyRequest { get; set; }
+        public bool NewKeyResponse { get; set; }
+        public string PrivateKey { get; set; }
+        public string Username { get; set; }
     }
 }

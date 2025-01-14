@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Runtime.InteropServices.Marshalling;
@@ -20,11 +21,26 @@ namespace CliChatClient.Data
         {
             _path = path;
         }
+
+        public TEntity this[string id]
+        {
+            get
+            {
+                if (_entities.ContainsKey(id))
+                {
+                    return _entities[id];
+                }
+                return default;
+            }
+            // does not await for update
+            private set => Update(id, value);
+        }
+
         public async Task Init()
         {
-            if (File.Exists(_path))
+            if (!File.Exists(_path))
             {
-                File.Create(_path);
+                using (File.Create(_path)) { }
             }
 
             string text = string.Empty;
@@ -36,7 +52,13 @@ namespace CliChatClient.Data
             }
 
             _entities = JsonConvert.DeserializeObject<Dictionary<string, TEntity>>(text);
+
+            if (_entities == null)
+            {
+                _entities = new Dictionary<string, TEntity>();
+            }
         }
+
         public async virtual Task<List<TEntity>> Get(Func<TEntity, bool> filter)
         {
             IEnumerable<TEntity> query = _entities.Values;
@@ -46,6 +68,12 @@ namespace CliChatClient.Data
             }
             return query.ToList();
         }
+
+        public async virtual Task<TEntity> Get(string id)
+        {
+            return _entities[id];
+        }
+
         public async Task<TEntity> GetFirst(Func<TEntity, bool> filter = null)
         {
             IEnumerable<TEntity> query = _entities.Values;
@@ -55,21 +83,24 @@ namespace CliChatClient.Data
             }
             return query.First();
         }
-        public async virtual void Insert(TEntity entity, string id)
+
+        public async virtual Task Insert(TEntity entity, string id)
         {
             _entities.Add(id, entity);
 
             await WriteToFileAsync();
         }
-        public async virtual void Delete(string id)
+
+        public async virtual Task Delete(string id)
         {
             _entities.Remove(id);
 
             await WriteToFileAsync();
         }
-        public async virtual void Update(string id, TEntity entity)
+
+        public async virtual Task Update(string id, TEntity entity)
         {
-            if (_entities.ContainsKey(id)) 
+            if (_entities.ContainsKey(id))
             {
                 _entities.Add(id, entity);
             }
