@@ -24,6 +24,11 @@ namespace CliChatClient.Services
 
         // Messages that need to be sent after key exchange
         List<MessageModel> _queuedToSendMessages;
+        List<MessageModel> _queuedToBeDecryptedMessages;
+
+        Action<MessageModel> _displayMessage;
+        Action<string> _displayError;
+        Action<string> _displayWarning;
 
         public MessageService(DataAccess dataAccess, Context context, HTTPService httpService)
         {
@@ -31,6 +36,7 @@ namespace CliChatClient.Services
             _dataAccess = dataAccess;
             _httpService = httpService;
             _queuedToSendMessages = new List<MessageModel>();
+            _queuedToBeDecryptedMessages = new List<MessageModel>();
         }
 
         public async ValueTask DisposeAsync()
@@ -40,9 +46,13 @@ namespace CliChatClient.Services
             await _connection.StopAsync();
         }
 
-        //TODO add handleErrorDisplay and handleWarningDisplay actions on init
-        public async void Init(Action<string, string> handleMessageReceive)
+        public async void Init(Action<MessageModel> displayMessage, Action<string> displayError, Action<string> displayWarning)
         {
+            _displayError = displayError;
+            _displayWarning = displayWarning;
+            _displayMessage = displayMessage;
+
+            // SignalR connection options
             _connection = new HubConnectionBuilder()
                 .WithUrl(_context.BaseUrl + "/chat",
                 options =>
@@ -54,30 +64,20 @@ namespace CliChatClient.Services
             // Handlers
 
             // Define the handler for receiving messages
-            _connection.On<string, string>("ReceiveMessage", (user, message) =>
+            _connection.On<string, string>("ReceiveMessage", async (user, message) =>
             {
-                //Console.WriteLine($"ReceiveMessage - {user}: encoded: {message}"); //TODO delete this
-                //TODO message validation, encryption
+                if (!_userKey.UsersSymetricKeys.ContainsKey(user)) 
+                {
+                    await RequireForgotenPrivateKey(user);
 
-                var decoded = message.Decode();
-                //Console.WriteLine($"Encrypted: {decoded}"); //TODO delete this
+                    _queuedToBeDecryptedMessages.Add(new MessageModel() { From = user, To = _context.LoggedUsername, Message = message });
+                }
+                else
+                {
+                    var resultMessage = DecryptMessage(user, message);
 
-
-                //Console.WriteLine($"!!!!!!!!!!!!Printing all symetric keys"); //TODO delete this
-                //foreach (var item in _userKey.UsersSymetricKeys)
-                //{
-                //    //Console.WriteLine($"{item.Key}: {item.Value}");
-                //}
-                //TODO not found case
-                //Console.WriteLine($"Do we have symetric key: {_userKey.UsersSymetricKeys.ContainsKey(user)}");
-                var symetricKey = _userKey.UsersSymetricKeys[user];
-                //Console.WriteLine($"Symetric Key: {symetricKey}"); //TODO delete this
-
-                var aesHelper = new AESEncryptionHelper(symetricKey);
-                var decrypted = aesHelper.Decrypt(decoded);
-                //Console.WriteLine($"Decrypted: {decrypted}"); //TODO delete this
-
-                handleMessageReceive(user, decrypted);
+                    _displayMessage(resultMessage);
+                }
             });
 
             // Define handeler for key exchange process
@@ -86,17 +86,17 @@ namespace CliChatClient.Services
                 // If user wants new key, we send new key
                 if (keyExchange.NewKeyRequest)
                 {
-                    //Console.WriteLine($"KeyExchange NewKeyRequest"); //TODO delete this
                     await SendNewPrivateKey(user);
+
+                    // displaying message about key exchange
+                    _displayMessage(new MessageModel() { From = user, To = _context.LoggedUsername, Message = "Key exchange successfull", IsNotification = true });
                 }
                 // If user sent new key, we add new key to _userKey object
                 else if (keyExchange.NewKeyResponse)
                 {
-                    //Console.WriteLine($"KeyExchange NewKeyResponse: encoded: {keyExchange.PrivateKey}"); //TODO delete this
                     var keyDecoded = keyExchange.PrivateKey.Decode();
-                    //Console.WriteLine($"Decoded: {keyDecoded}"); //TODO delete this
                     var keyDecrypted = _RSAEncryptionHelper.Decrypt(keyDecoded);
-                    //Console.WriteLine($"Decrypted: {keyDecrypted}"); //TODO delete this
+
                     if (_userKey.UsersSymetricKeys.ContainsKey(user))
                     {
                         _userKey.UsersSymetricKeys[user] = keyDecrypted;
@@ -105,6 +105,26 @@ namespace CliChatClient.Services
                     {
                         _userKey.UsersSymetricKeys.Add(user, keyDecrypted);
                     }
+
+                    // displaying message about key exchange
+                    _displayMessage(new MessageModel() { From = user, To = _context.LoggedUsername, Message = "Key exchange successfull", IsNotification = true });
+                }
+                // If user want old key
+                else if (keyExchange.ForgotKeyRequest)
+                {
+                    if (_userKey.UsersSymetricKeys.ContainsKey(user))
+                    {
+                        // sending key
+                        await SendPrivateKey(user, _userKey.UsersSymetricKeys[user]);
+                    }
+                    else
+                    {
+                        // sending new key
+                        await SendNewPrivateKey(user);
+                    }
+
+                    // displaying message about key exchange
+                    _displayMessage(new MessageModel() { From = user, To = _context.LoggedUsername, Message = "Key exchange successfull", IsNotification = true });
                 }
 
                 // Checking queued messages, if they exists, we send them
@@ -113,10 +133,24 @@ namespace CliChatClient.Services
                 foreach (var message in userQueuedMessages) 
                 {
                     await SendMessage(user, message.Message);
+                    _queuedToSendMessages.Remove(message);
+                }
+
+                var userMessagesToBeDecrypted = _queuedToBeDecryptedMessages.Where(m => m.From == user);
+
+                foreach (var message in userMessagesToBeDecrypted)
+                {
+                    var decryptedMessageModel = DecryptMessage(user, message.Message);
+                    displayMessage(decryptedMessageModel);
+                    _queuedToBeDecryptedMessages.Remove(message);
                 }
             });
 
-            // TODO Error handler
+            // Define handeler for server side error handling
+            _connection.On<string, string>("ReceiveError", (u, e) =>
+            {
+                _displayError(e);
+            });
 
             // Key validations
             if (_dataAccess.UserKey[_context.LoggedUsername] == null) 
@@ -130,6 +164,8 @@ namespace CliChatClient.Services
             {
                 throw new Exception($"there are no private key for {_context.LoggedUsername}, try importing it manually");
             }
+
+            //TODO after implementing message queueing on server, implement getting messages, and displaying
 
             // creating new UserKey instance without old exchanged keys
             // it need to exchange keys with users again
@@ -146,8 +182,6 @@ namespace CliChatClient.Services
 
             // Starting connection
             await _connection.StartAsync();
-
-            //TODO update old keys
         }
 
         /// <summary>
@@ -158,19 +192,73 @@ namespace CliChatClient.Services
         /// <returns></returns>
         public async Task SendMessage(string user, string message)
         {
-            // TODO errors
-            // TODO encryption
-            // TODO key exchange
+            try
+            {
+                if (!_userKey.UsersSymetricKeys.ContainsKey(user))
+                {
+                    // if we dont have exchanged key on message sending, we require new key from user whum we want to send message
+                    await RequirePrivateKey(user);
+                    // and adding message to queue
+                    // we will check queue after key exchange
+                    _queuedToSendMessages.Add(new MessageModel { From = _context.LoggedUsername, Message = message, To = user });
+                }
+                else
+                {
+                    // if we already have key, we send message
+                    await EncryptMessageAndSend(user, message);
 
-            if (!_userKey.UsersSymetricKeys.ContainsKey(user))
-            {
-                await RequirePrivateKey(user);
-                _queuedToSendMessages.Add(new MessageModel { From = _context.LoggedUsername, Message = message, To = user });
+                    _displayMessage(new MessageModel()
+                    {
+                        From = _context.LoggedUsername,
+                        To = user,
+                        Message = message
+                    });
+                }
             }
-            else
+            catch (Exception e)
             {
-                await EncryptMessageAndSend(user, message);
+                _displayError(e.Message);
             }
+        }
+
+        /// <summary>
+        /// Before using this function, check _userKey.UsersSymetricKeys[user]
+        /// 
+        /// decrypting user's message using exchanged private key
+        /// if something goes wrong in process
+        /// it marks message as error, setting HasError to true, and adding error to message
+        /// in UI we can just print it, and it will not be presented as normal message
+        /// </summary>
+        /// <param name="user">user who sent message</param>
+        /// <param name="message">message text</param>
+        /// <returns></returns>
+        private MessageModel DecryptMessage(string user, string message)
+        {
+            var resultMessage = new MessageModel();
+
+            try
+            {
+                var symetricKey = _userKey.UsersSymetricKeys[user];
+                var aesHelper = new AESEncryptionHelper(symetricKey);
+
+                var decodedMessage = message.Decode();
+                var decryptedMessage = aesHelper.Decrypt(decodedMessage);
+
+                //TODO message validation
+
+                resultMessage.Message = decryptedMessage;
+                resultMessage.From = user;
+                resultMessage.To = _context.LoggedUsername;
+            }
+            catch (Exception e)
+            {
+                resultMessage.Message = e.Message;
+                resultMessage.HasError = true;
+                resultMessage.From = user;
+                resultMessage.To = _context.LoggedUsername;
+            }
+
+            return resultMessage;
         }
 
         /// <summary>
@@ -183,15 +271,14 @@ namespace CliChatClient.Services
         private async Task EncryptMessageAndSend(string user, string message) 
         {
             var aesHelper = new AESEncryptionHelper(_userKey.UsersSymetricKeys[user]);
-            //Console.WriteLine($"Message To Send: {message}"); //TODO delete this
-            var encryptedMessage = aesHelper.Encrypt(message);
-            //Console.WriteLine($"Message Encrypting: {encryptedMessage}"); //TODO delete this
-            var encoded = encryptedMessage.Encode();
-            //Console.WriteLine($"Message Encoding and sending: {encoded}"); //TODO delete this
 
-            await _connection.InvokeAsync("SendMessage", encoded, user);
+            var encryptedMessage = aesHelper.Encrypt(message);
+            var encodedMessage = encryptedMessage.Encode();
+
+            await _connection.InvokeAsync("SendMessage", encodedMessage, user);
         }
 
+        #region Key Exchange
         /// <summary>
         /// sending to user request to generate and send back new AES key
         /// </summary>
@@ -210,6 +297,22 @@ namespace CliChatClient.Services
         }
 
         /// <summary>
+        /// sending to user request to send old AES key
+        /// </summary>
+        /// <param name="user">user's username</param>
+        /// <returns></returns>
+        private async Task RequireForgotenPrivateKey(string user)
+        {
+            var keyExchange = new KeyExchangeModel()
+            {
+                ForgotKeyRequest = true,
+                Username = _context.LoggedUsername
+            };
+
+            await _connection.InvokeAsync("KeyExchange", keyExchange, user);
+        }
+
+        /// <summary>
         /// generating new AES key
         /// encrypting it using user's public RSA key
         /// sending it
@@ -218,17 +321,29 @@ namespace CliChatClient.Services
         /// <returns></returns>
         private async Task SendNewPrivateKey(string user)
         {
-            string pubKey = await GetUsersPubKey(user);
-            //Console.WriteLine($"Getting users public key from server: {pubKey}"); //TODO delete this
-
             var key = AESEncryptionHelper.GenerateKey();
-            //Console.WriteLine($"Generating AES key: {key}"); //TODO delete this
+            
+            await SendPrivateKey(user, key);
 
-            var rsaHelper = new RSAEncryptionHelper(pubKey, "");
-            var keyEncrypted = rsaHelper.Encrypt(key);
-            //Console.WriteLine($"Encrypting Key: {keyEncrypted}"); //TODO delete this
-            var keyEncoded = keyEncrypted.Encode();
-            //Console.WriteLine($"Encoding Key and sending: {keyEncoded}"); //TODO delete this
+            if (_userKey.UsersSymetricKeys.ContainsKey(user))
+            {
+                _userKey.UsersSymetricKeys[user] = key;
+            }
+            else
+            {
+                _userKey.UsersSymetricKeys.Add(user, key);
+            }
+        }
+
+        /// <summary>
+        /// encrypting, encoding private key, and sending to user
+        /// </summary>
+        /// <param name="user">username</param>
+        /// <param name="key">AES key</param>
+        /// <returns></returns>
+        private async Task SendPrivateKey(string user, string key)
+        {
+            var keyEncoded = await EncryptEncodeKey(user, key);
 
             var keyExchange = new KeyExchangeModel()
             {
@@ -238,8 +353,6 @@ namespace CliChatClient.Services
             };
 
             await _connection.InvokeAsync("KeyExchange", keyExchange, user);
-
-            _userKey.UsersSymetricKeys.Add(user, key);
         }
 
         /// <summary>
@@ -263,6 +376,24 @@ namespace CliChatClient.Services
                 return pubkeyDecoded;
             }
         }
+
+        /// <summary>
+        /// getting user's public key, and encrypting (then encoding) new key
+        /// </summary>
+        /// <param name="user">username</param>
+        /// <param name="key">AES key</param>
+        /// <returns></returns>
+        private async Task<string> EncryptEncodeKey(string user, string key)
+        {
+            string pubKey = await GetUsersPubKey(user);
+
+            var rsaHelper = new RSAEncryptionHelper(pubKey, "");
+            var keyEncrypted = rsaHelper.Encrypt(key);
+            var keyEncoded = keyEncrypted.Encode();
+
+            return keyEncoded;
+        }
+        #endregion
     }
 }
 

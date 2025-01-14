@@ -40,6 +40,17 @@ namespace CliChatClient.Services
         }
 
         /// <summary>
+        /// if user is connected to hub, returns true
+        /// </summary>
+        /// <param name="username"></param>
+        /// <returns></returns>
+        public async Task<string> GetUserIsOnline(string username)
+        {
+            var resp = await Get<dynamic>($"api/user/{username}");
+            return resp.isOnline;
+        }
+
+        /// <summary>
         /// sending login request, returning jwt token
         /// </summary>
         /// <param name="username">username to login</param>

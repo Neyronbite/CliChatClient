@@ -10,6 +10,7 @@ namespace CliChatClient.Models
     {
         public bool NewKeyRequest { get; set; }
         public bool NewKeyResponse { get; set; }
+        public bool ForgotKeyRequest { get; set; }
         public string PrivateKey { get; set; }
         public string Username { get; set; }
     }

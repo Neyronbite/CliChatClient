@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Terminal.Gui;
 
 namespace CliChatClient.UI
 {
@@ -57,12 +56,11 @@ namespace CliChatClient.UI
             InitSpaces();
         }
 
-        public void Init(List<MessageModel> messages, Action<string> handleUserInput)
+        public void Init(Action<string> handleUserInput)
         {
-            this.messages = messages;
             this.handleUserInput = handleUserInput;
 
-            scrollPosition = messages.Count - 1;
+            scrollPosition = 0;
 
             //Console.SetBufferSize(Console.BufferWidth * 4, Console.BufferHeight * 4);
             Console.CursorVisible = false;
@@ -114,9 +112,8 @@ namespace CliChatClient.UI
 
         private ConsoleKeyInfo CheckInputs(ConsoleKeyInfo exKey)
         {
-        ConsoleKeyInfo key = Console.ReadKey(true);
+            ConsoleKeyInfo key = Console.ReadKey(true);
 
-            
             switch (key.Key)
             {
                 case ConsoleKey.Backspace:
@@ -255,7 +252,23 @@ namespace CliChatClient.UI
                 Console.Write(message.To);
                 Console.ResetColor();
                 Console.Write(": ");
-                Console.WriteLine(message.Message);
+
+                if (message.HasError)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.WriteLine(message.Message);
+                    Console.ResetColor();
+                }
+                else if (message.IsNotification)
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine(message.Message);
+                    Console.ResetColor();
+                }
+                else
+                {
+                    Console.WriteLine(message.Message);
+                }
 
                 currentY++;
             }

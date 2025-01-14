@@ -25,6 +25,57 @@ namespace CliChatClient.Helpers
             _privateKey = privateKey;
         }
 
+        // Encrypting text with password
+        public static string PasswordEncrypt(string plainText, string password)
+        {
+            using (Aes aesAlg = Aes.Create())
+            {
+                // Generate a key and IV from the password
+                using (var keyDerivation = new Rfc2898DeriveBytes(password, Encoding.UTF8.GetBytes("SaltKey"), 10000))
+                {
+                    aesAlg.Key = keyDerivation.GetBytes(32);  // AES-256 key size
+                    aesAlg.IV = keyDerivation.GetBytes(16);   // AES block size (128 bits)
+
+                    using (MemoryStream msEncrypt = new MemoryStream())
+                    {
+                        using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, aesAlg.CreateEncryptor(), CryptoStreamMode.Write))
+                        {
+                            using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                            {
+                                swEncrypt.Write(plainText);
+                            }
+                        }
+                        return Convert.ToBase64String(msEncrypt.ToArray());
+                    }
+                }
+            }
+        }
+
+        // Decrypting password encrypted text
+        public static string PasswordDecrypt(string cipherText, string password)
+        {
+            using (Aes aesAlg = Aes.Create())
+            {
+                // Generate a key and IV from the password
+                using (var keyDerivation = new Rfc2898DeriveBytes(password, Encoding.UTF8.GetBytes("SaltKey"), 10000))
+                {
+                    aesAlg.Key = keyDerivation.GetBytes(32);  // AES-256 key size
+                    aesAlg.IV = keyDerivation.GetBytes(16);   // AES block size (128 bits)
+
+                    using (MemoryStream msDecrypt = new MemoryStream(Convert.FromBase64String(cipherText)))
+                    {
+                        using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, aesAlg.CreateDecryptor(), CryptoStreamMode.Read))
+                        {
+                            using (StreamReader srDecrypt = new StreamReader(csDecrypt))
+                            {
+                                return srDecrypt.ReadToEnd();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Static method to generate a new AES private key
         public static string GenerateKey()
         {
