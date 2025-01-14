@@ -39,10 +39,13 @@ var argParser = new ArgumentParser();
 var options = argParser.Parse(args);
 
 // Context class, that contains main properties for services (username, url ...)
+
 var context = new Context()
 {
     LoggedUsername = options.Username,
-    BaseUrl = @"https://" + options.Server
+    BaseUrl = options.Server,
+    IgnoreSSL = options.IgnoreSSL
+
 };
 
 // main services
@@ -54,6 +57,7 @@ var mainWin = new MainWindow();
 // finalization function, that closes connection to server, saves db's etc
 Action finalizingAction = async () =>
 {
+    Console.CursorVisible = true;
     Console.WriteLine("Finalizing");
     await messageService.DisposeAsync();
     Console.WriteLine("Disconnected from SignalR hub");
@@ -122,6 +126,10 @@ catch (Exception e)
     Console.WriteLine();
     Console.WriteLine("An error occured while processing request");
     Console.WriteLine(e.Message);
+    if (e.InnerException != null)
+    {
+        Console.WriteLine(e.InnerException.Message);
+    }
     Environment.Exit(0);
 }
 

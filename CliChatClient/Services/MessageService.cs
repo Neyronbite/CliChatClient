@@ -58,6 +58,19 @@ namespace CliChatClient.Services
                 options =>
                 {
                     options.AccessTokenProvider = () => Task.FromResult(_context.Token);
+                    if (_context.IgnoreSSL)
+                    {
+                        options.HttpMessageHandlerFactory = (message) =>
+                        {
+                            if (message is HttpClientHandler clientHandler)
+                            {
+                                // always verify the SSL certificate
+                                clientHandler.ServerCertificateCustomValidationCallback +=
+                                    (sender, certificate, chain, sslPolicyErrors) => { return true; };
+                            }
+                            return message;
+                        };
+                    }
                 })
                 .Build();
 

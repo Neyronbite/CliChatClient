@@ -25,6 +25,10 @@ namespace CliChatClient.Models
         /// Authentication jwt token
         /// </summary>
         public string Token { get; set; }
+        /// <summary>
+        /// if is true, services will ignore certificate validation issues
+        /// </summary>
+        public bool IgnoreSSL { get; set; }
 
 
         public Context()

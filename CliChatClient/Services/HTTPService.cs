@@ -22,7 +22,19 @@ namespace CliChatClient.Services
         {
             _context = context;
 
-            _httpClient = new HttpClient()
+            var handler = new HttpClientHandler();
+
+            if (_context.IgnoreSSL)
+            {
+                handler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                handler.ServerCertificateCustomValidationCallback =
+                    (httpRequestMessage, cert, cetChain, policyErrors) =>
+                    {
+                        return true;
+                    };
+            }
+
+            _httpClient = new HttpClient(handler)
             {
                 BaseAddress = new Uri(_context.BaseUrl)
             };
