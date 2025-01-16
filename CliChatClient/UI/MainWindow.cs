@@ -25,6 +25,7 @@ namespace CliChatClient.UI
 
         private List<ConsoleColor> colorList;
         string spaceArr = string.Empty;
+        string defaultPtefixString = string.Empty;
 
         private StringBuilder stringBuilder = new StringBuilder();
         private int scrollPosition = 0;
@@ -116,6 +117,7 @@ namespace CliChatClient.UI
 
             switch (key.Key)
             {
+                // Deleting last character
                 case ConsoleKey.Backspace:
                     if (stringBuilder.Length > 0)
                     {
@@ -123,8 +125,10 @@ namespace CliChatClient.UI
                         inputToBeRerendered = true;
                     }
                     break;
+                // Refreshing
                 case ConsoleKey.F5:
                     InitSpaces();
+                    Console.Clear();
                     width = Console.WindowWidth;
                     height = Console.WindowHeight;
                     toBeUpdated = true;
@@ -132,6 +136,7 @@ namespace CliChatClient.UI
                     warningsToBeRendered = true;
                     inputToBeRerendered = true;
                     break;
+                // Scrolling (4 cases)
                 case ConsoleKey.UpArrow:
                     scrollPosition -= scrollPosition > height - defaulMargin ? 1 : 0;
                     messagesToBeRerendered = true;
@@ -145,19 +150,28 @@ namespace CliChatClient.UI
                     messagesToBeRerendered = true;
                     break;
                 case ConsoleKey.PageDown:
-                    //TODO found bug here, when trying down arrow after pgdown
                     scrollPosition = scrollPosition + 10 < messages.Count ? scrollPosition + 10 : messages.Count - 1;
                     messagesToBeRerendered = true;
                     break;
+                // Cashing prefix string
+                case ConsoleKey.Tab:
+                    defaultPtefixString = stringBuilder.ToString();
+                    break;
+                // Removeing cashed prefix string
+                case ConsoleKey.Escape:
+                    defaultPtefixString = string.Empty;
+                    break;
+                // Submiting input
                 case ConsoleKey.Enter:
                     var str = stringBuilder.ToString();
                     Task.Run(() =>
                     {
                         handleUserInput(str);
                     });
-                    stringBuilder = new StringBuilder();
+                    stringBuilder = new StringBuilder(defaultPtefixString);
                     inputToBeRerendered = true;
                     break;
+                // Appending char 
                 default:
                     stringBuilder.Append(key.KeyChar);
                     inputToBeRerendered = true;

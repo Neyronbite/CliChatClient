@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using CliChatClient.Models;
 using static System.Collections.Specialized.BitVector32;
 using CliChatClient.Utils;
+using System.ComponentModel;
+using System.Net;
 
 namespace CliChatClient.Services
 {
@@ -117,13 +119,7 @@ namespace CliChatClient.Services
             using HttpResponseMessage response = await _httpClient
                 .PostAsync(action, JsonContent.Create(parameters));
 
-            response.EnsureSuccessStatusCode();
-
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-
-            var tReturn = JsonConvert.DeserializeObject<TReturn>(jsonResponse);
-
-            return tReturn;
+            return await HandleResponse<TReturn>(response);
         }
 
         /// <summary>
@@ -138,13 +134,7 @@ namespace CliChatClient.Services
             using HttpResponseMessage response = await _httpClient
                 .PutAsync(action, JsonContent.Create(parameters));
 
-            response.EnsureSuccessStatusCode();
-
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-
-            var tReturn = JsonConvert.DeserializeObject<TReturn>(jsonResponse);
-
-            return tReturn;
+            return await HandleResponse<TReturn>(response);
         }
 
         /// <summary>
@@ -159,9 +149,20 @@ namespace CliChatClient.Services
             using HttpResponseMessage response = await _httpClient
                .GetAsync(action);
 
-            response.EnsureSuccessStatusCode();
+            return await HandleResponse<TReturn>(response);
+        }
 
+        private async Task<TReturn> HandleResponse<TReturn> (HttpResponseMessage response)
+        {
             var jsonResponse = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {   
+                ErrorModel err = JsonConvert.DeserializeObject<ErrorModel>(jsonResponse);
+                string errMessage = err.Message;
+
+                throw new Exception(errMessage);
+            }
 
             var tReturn = JsonConvert.DeserializeObject<TReturn>(jsonResponse);
 
