@@ -9,8 +9,8 @@ namespace CliChatClient.Models
 {
     public class ErrorModel
     {
-        public HttpStatusCode StatusCode { get; set; }
-        public string Message { get; set; }
-        public string? Suggestions { get; set; }
+        public HttpStatusCode Status { get; set; }
+        public string Title { get; set; }
+        public Dictionary<string, string[]> Errors { get; set; }
     }
 }

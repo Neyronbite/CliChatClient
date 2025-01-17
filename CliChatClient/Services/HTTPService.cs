@@ -108,6 +108,15 @@ namespace CliChatClient.Services
         }
 
         /// <summary>
+        /// Getting queued messages sent to this user
+        /// </summary>
+        /// <returns></returns>
+        public async Task<List<MessageModel>> GetQueuedMessages()
+        {
+            return await Get<List<MessageModel>>("api/message");
+        }
+
+        /// <summary>
         /// http post request
         /// </summary>
         /// <typeparam name="TReturn">return type</typeparam>
@@ -152,6 +161,13 @@ namespace CliChatClient.Services
             return await HandleResponse<TReturn>(response);
         }
 
+        /// <summary>
+        /// getting json respose, handling errors
+        /// </summary>
+        /// <typeparam name="TReturn"></typeparam>
+        /// <param name="response"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         private async Task<TReturn> HandleResponse<TReturn> (HttpResponseMessage response)
         {
             var jsonResponse = await response.Content.ReadAsStringAsync();
@@ -159,7 +175,7 @@ namespace CliChatClient.Services
             if (!response.IsSuccessStatusCode)
             {   
                 ErrorModel err = JsonConvert.DeserializeObject<ErrorModel>(jsonResponse);
-                string errMessage = err.Message;
+                string errMessage = err.Title;
 
                 throw new Exception(errMessage);
             }

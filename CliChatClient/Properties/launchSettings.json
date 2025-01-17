@@ -2,7 +2,7 @@
   "profiles": {
     "CliChatClient": {
       "commandName": "Project",
-      "commandLineArgs": "-l -u neonchik -s http://10.100.101.25:5293"
+      "commandLineArgs": "-l -u neonchik -s http://10.100.101.25:5293 -i"
     }
   }
 }
