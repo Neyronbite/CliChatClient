@@ -41,12 +41,12 @@ namespace CliChatClient.Services
 
         public async ValueTask DisposeAsync()
         {
-            await _dataAccess.UserKey.Update(_userKey.Username, _userKey);
+            await _dataAccess.UserKeys.Update(_userKey.Username, _userKey);
             await _dataAccess.DisposeAsync();
             await _connection.StopAsync();
         }
 
-        public async void Init(Action<MessageModel> displayMessage, Action<string> displayError, Action<string> displayWarning)
+        public async Task Init(Action<MessageModel> displayMessage, Action<string> displayError, Action<string> displayWarning, List<MessageModel> queued)
         {
             _displayError = displayError;
             _displayWarning = displayWarning;
@@ -79,7 +79,7 @@ namespace CliChatClient.Services
             // Define the handler for receiving messages
             _connection.On<string, string>("ReceiveMessage", async (user, message) =>
             {
-                if (!_userKey.UsersSymetricKeys.ContainsKey(user)) 
+                if (!_userKey.UsersSymetricKeys.ContainsKey(user))
                 {
                     await RequireForgotenPrivateKey(user);
 
@@ -114,7 +114,7 @@ namespace CliChatClient.Services
                     {
                         _userKey.UsersSymetricKeys[user] = keyDecrypted;
                     }
-                    else 
+                    else
                     {
                         _userKey.UsersSymetricKeys.Add(user, keyDecrypted);
                     }
@@ -143,7 +143,7 @@ namespace CliChatClient.Services
                 // Checking queued messages, if they exists, we send them
                 var userQueuedMessages = _queuedToSendMessages.Where(m => m.To == user);
 
-                foreach (var message in userQueuedMessages) 
+                foreach (var message in userQueuedMessages)
                 {
                     await SendMessage(user, message.Message);
                     _queuedToSendMessages.Remove(message);
@@ -166,19 +166,17 @@ namespace CliChatClient.Services
             });
 
             // Key validations
-            if (_dataAccess.UserKey[_context.LoggedUsername] == null) 
+            if (_dataAccess.UserKeys[_context.LoggedUsername] == null)
             {
                 throw new Exception($"there are no data for {_context.LoggedUsername}, try importing them manually");
             }
 
-            var oldUserKey = _dataAccess.UserKey[_context.LoggedUsername];
+            var oldUserKey = _dataAccess.UserKeys[_context.LoggedUsername];
 
             if (string.IsNullOrEmpty(oldUserKey.PrivateKey))
             {
                 throw new Exception($"there are no private key for {_context.LoggedUsername}, try importing it manually");
             }
-
-            //TODO after implementing message queueing on server, implement getting messages, and displaying
 
             // creating new UserKey instance without old exchanged keys
             // it need to exchange keys with users again
@@ -188,10 +186,13 @@ namespace CliChatClient.Services
                 PrivateKey = oldUserKey.PrivateKey,
                 PublicKey = oldUserKey.PublicKey,
                 UsersSymetricKeys = new Dictionary<string, string>(),
-                UsersPublicKeys = oldUserKey.UsersPublicKeys
+                UsersPublicKeys = new Dictionary<string, string>()
             };
 
             _RSAEncryptionHelper = new RSAEncryptionHelper(_userKey.PublicKey, _userKey.PrivateKey);
+
+            // we need to await main UI init task, to display messages
+            await GetMessages(oldUserKey.UsersSymetricKeys, queued);
 
             // Starting connection
             await _connection.StartAsync();
@@ -281,7 +282,7 @@ namespace CliChatClient.Services
         /// <param name="user">user to send message</param>
         /// <param name="message">message to be sent</param>
         /// <returns></returns>
-        private async Task EncryptMessageAndSend(string user, string message) 
+        private async Task EncryptMessageAndSend(string user, string message)
         {
             var aesHelper = new AESEncryptionHelper(_userKey.UsersSymetricKeys[user]);
 
@@ -299,7 +300,6 @@ namespace CliChatClient.Services
         /// <returns></returns>
         private async Task RequirePrivateKey(string user)
         {
-            //TODO check user existance and is online
             var keyExchange = new KeyExchangeModel()
             {
                 NewKeyRequest = true,
@@ -335,7 +335,7 @@ namespace CliChatClient.Services
         private async Task SendNewPrivateKey(string user)
         {
             var key = AESEncryptionHelper.GenerateKey();
-            
+
             await SendPrivateKey(user, key);
 
             if (_userKey.UsersSymetricKeys.ContainsKey(user))
@@ -381,7 +381,6 @@ namespace CliChatClient.Services
             }
             else
             {
-                //TODO handle user not found error
                 var pubKey = await _httpService.GetUsersPubKey(user);
                 var pubkeyDecoded = pubKey.Decode();
                 _userKey.UsersPublicKeys.Add(user, pubkeyDecoded);
@@ -407,9 +406,46 @@ namespace CliChatClient.Services
             return keyEncoded;
         }
         #endregion
+
+        /// <summary>
+        /// Getting queued messages, decrypting, displaying
+        /// </summary>
+        /// <param name="oldKeys"></param>
+        /// <returns></returns>
+        private async Task GetMessages(Dictionary<string, string> oldKeys, List<MessageModel> list)
+        {
+            var messages = await _httpService.GetQueuedMessages();
+
+            foreach (var item in messages)
+            {
+                if (oldKeys.ContainsKey(item.From))
+                {
+                    var aes = new AESEncryptionHelper(oldKeys[item.From]);
+
+                    var decoded = item.Message.Decode();
+
+                    try
+                    {
+                        var decrypted = aes.Decrypt(decoded);
+                        item.Message = decrypted;
+                    }
+                    catch (Exception e)
+                    {
+                        item.Message = "Exception while decrypting";
+                        item.HasError = true;
+                    }
+
+                    list.Add(item);
+                }
+                else
+                {
+                    item.Message = "Key not found";
+                    item.HasError = true;
+                }
+            }
+        }
     }
 }
-
 
 // TODO obshi ste kareli er ujex architecture gcel,
 // vor hnaravorutyun tar apaga avel huberi kpnely hesht arver

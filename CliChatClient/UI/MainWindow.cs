@@ -57,11 +57,12 @@ namespace CliChatClient.UI
             InitSpaces();
         }
 
-        public void Init(Action<string> handleUserInput)
+        public void Init(Action<string> handleUserInput, List<MessageModel> startMessages)
         {
             this.handleUserInput = handleUserInput;
+            messages = startMessages;
 
-            scrollPosition = 0;
+            scrollPosition = messages.Count - 1;
 
             //Console.SetBufferSize(Console.BufferWidth * 4, Console.BufferHeight * 4);
             Console.CursorVisible = false;

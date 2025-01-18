@@ -12,16 +12,6 @@ using System.Text.Json.Serialization;
 
 // Heading text
 Console.ForegroundColor = ConsoleColor.DarkMagenta;
-//Console.WriteLine("""
-//    ooo        ooooo  o8o    .o    oooo o.     .oooooo.   oooo                      .   
-//    `88.       .888'  `"'   .8'    `888 `8.   d8P'  `Y8b  `888                    .o8   
-//     888b     d'888  oooo  .8'      888  `8. 888           888 .oo.    .oooo.   .o888oo 
-//     8 Y88. .P  888  `888  88       888   88 888           888P"Y88b  `P  )88b    888   
-//     8  `888'   888   888  88       888   88 888           888   888   .oP"888    888   
-//     8    Y     888   888  `8.      888  .8' `88b    ooo   888   888  d8(  888    888 . 
-//    o8o        o888o o888o  `8. .o. 88P .8'   `Y8bood8P'  o888o o888o `Y888""8o   "888" 
-//                             `" `Y888P  "'                                              
-//    """);
 Console.WriteLine("""
     ███╗   ███╗██╗     ██╗     ██╗██╗      ██████╗██╗  ██╗ █████╗ ████████╗
     ████╗ ████║██║    ██╔╝     ██║╚██╗    ██╔════╝██║  ██║██╔══██╗╚══██╔══╝
@@ -50,12 +40,12 @@ var context = new Context()
 
 // main services
 var httpService = new HTTPService(context);
-var dataAccess = new DataAccess(context);
+var dataAccess = new DataAccess(context, false);
 var messageService = new MessageService(dataAccess, context, httpService);
 var mainWin = new MainWindow();
 
 // finalization function, that closes connection to server, saves db's etc
-Action finalizingAction = async () =>
+Func<Task> finalizingAction = async () =>
 {
     Console.CursorVisible = true;
     Console.WriteLine("Finalizing");
@@ -63,11 +53,6 @@ Action finalizingAction = async () =>
     Console.WriteLine("Disconnected from SignalR hub");
     Environment.Exit(0);
 };
-
-// Initializing local database access class
-// we are initializing this service earlyer than others,
-// because after registration we need to save then into db
-await dataAccess.Init();
 
 // operations on parsed arguments
 try
@@ -96,16 +81,21 @@ try
 
         // getting token
         context.Token = await httpService.Register(context.LoggedUsername, password, keys.publicKey);
+        context.Password = password;
+
+        // Initializing dataAccess after gaining password, to encrypt new data with password
+        await dataAccess.Init();
 
         // inserting new user data to db
-        await dataAccess.UserKey.Insert(new UserKey() 
-        {
-            PrivateKey = keys.privateKey,
-            PublicKey = keys.publicKey,
-            Username = context.LoggedUsername,
-            UsersPublicKeys = new Dictionary<string, string>(),
-            UsersSymetricKeys = new Dictionary<string, string>()
-        }, context.LoggedUsername);
+        await dataAccess.UserKeys.Update(context.LoggedUsername,
+            new UserKey()
+            {
+                PrivateKey = keys.privateKey,
+                PublicKey = keys.publicKey,
+                Username = context.LoggedUsername,
+                UsersPublicKeys = new Dictionary<string, string>(),
+                UsersSymetricKeys = new Dictionary<string, string>()
+            });
 
         Console.WriteLine();
         Console.WriteLine("Welcome " + options.Username);
@@ -116,6 +106,10 @@ try
 
         // getting token
         context.Token = await httpService.Authenticate(options.Username, password);
+        context.Password = password;
+
+        // Initializing dataAccess after gaining password, to decrypt it with password
+        await dataAccess.Init();
 
         Console.WriteLine();
         Console.WriteLine("Successfully loged in");
@@ -135,19 +129,26 @@ catch (Exception e)
 
 // Register the custom Ctrl+C handler
 // It overrides default program closing, and finalizing things
-Console.CancelKeyPress += new ConsoleCancelEventHandler((sender, e) => { finalizingAction(); });
+Console.CancelKeyPress += new ConsoleCancelEventHandler((sender, e) => 
+{
+    var task = finalizingAction();
+    Task.WaitAny(task);
+});
 
 try
 {
+
+    // queued messages
+    var messages = new List<MessageModel>();
+
     // Initializing signal r communication service
     // Handling received message delivering to UI
-    messageService.Init(
+    await messageService.Init(
         mainWin.AddMessage,
         mainWin.SetError,
-        mainWin.SetWarning);
+        mainWin.SetWarning,
+        messages);
 
-    // TODO get queued messages from server
-    var messages = new List<MessageModel>();
 
     // Initializing main UI class
     mainWin.Init(async m =>
@@ -171,7 +172,7 @@ try
         {
             mainWin.SetError(e.Message);
         }
-    });
+    }, messages);
 }
 catch (Exception e)
 {
@@ -180,33 +181,6 @@ catch (Exception e)
 }
 finally
 {
-    finalizingAction();
+    var task = finalizingAction();
+    Task.WaitAny(task);
 }
-
-// For Testing
-//try
-//{
-//    messageService.Init((u, m) =>
-//    {
-//        Console.WriteLine("message from " + u + " : " + m);
-//    });
-
-//    // Loop to send messages
-//    while (true)
-//    {
-//        var m = Console.ReadLine();
-//        var mArr = m.Split(' ');
-//        var to = mArr[0];
-//        var message = m.Replace(to + " ", "");
-
-//        await messageService.SendMessage(to, message);
-//    }
-//}
-//catch (Exception ex)
-//{
-//    Console.WriteLine($"Error: {ex.Message}");
-//}
-//finally
-//{
-//    finalizingAction();
-//}

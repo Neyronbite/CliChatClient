@@ -29,6 +29,10 @@ namespace CliChatClient.Models
         /// if is true, services will ignore certificate validation issues
         /// </summary>
         public bool IgnoreSSL { get; set; }
+        /// <summary>
+        /// user's password for authentication and reading encrypted data 
+        /// </summary>
+        public string Password { get; set; }
 
 
         public Context()
