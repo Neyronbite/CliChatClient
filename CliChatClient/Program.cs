@@ -40,7 +40,7 @@ var context = new Context()
 
 // main services
 var httpService = new HTTPService(context);
-var dataAccess = new DataAccess(context, false);
+var dataAccess = new DataAccess(context);
 var messageService = new MessageService(dataAccess, context, httpService);
 var mainWin = new MainWindow();
 
@@ -134,6 +134,8 @@ Console.CancelKeyPress += new ConsoleCancelEventHandler((sender, e) =>
     var task = finalizingAction();
     Task.WaitAny(task);
 });
+Console.InputEncoding = System.Text.Encoding.Unicode;
+Console.OutputEncoding = System.Text.Encoding.Unicode;
 
 try
 {
