@@ -3,10 +3,10 @@
 Mi(j)Chat is a simple command-line interface (CLI) chat application that provides end-to-end encryption. The server never knows what users are sending to each other, ensuring full privacy and anonymity. All communications are fully encrypted, and the server does not store any messages or personal data.
 
 
-![Presentation]("assets/Screenshot1.png")
-![Presentation]("assets/Screenshot2.png")
-![Presentation]("assets/Screenshot3.png")
-![Presentation]("assets/Screenshot4.png")
+![Presentation](assets/Screenshot1.png)
+![Presentation](assets/Screenshot2.png)
+![Presentation](assets/Screenshot3.png)
+![Presentation](assets/Screenshot4.png)
 
 
 ## Features
