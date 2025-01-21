@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "CliChatClient": {
-      "commandName": "Project",
-      "commandLineArgs": "-l -u neon -s https://10.100.101.25:7183 -i"
-    }
-  }
-}
