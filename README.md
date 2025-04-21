@@ -1,4 +1,5 @@
 # Mi(j)Chat - End-to-End Encrypted CLI Chat
+### version 1.1
 
 Mi(j)Chat is a simple command-line interface (CLI) chat application that provides end-to-end encryption. The server never knows what users are sending to each other, ensuring full privacy and anonymity. All communications are fully encrypted, and the server does not store any messages or personal data.
 
@@ -7,6 +8,11 @@ Mi(j)Chat is a simple command-line interface (CLI) chat application that provide
 ![Presentation](assets/Screenshot2.png)
 ![Presentation](assets/Screenshot3.png)
 ![Presentation](assets/Screenshot4.png)
+
+## What's New
+
+- **Group Chat**: Create temporary end-to-end encrypted group chats with multiple users.
+- **Improved UI/UX**: Updated command-line interface for a more intuitive experience.
 
 
 ## Features
@@ -28,7 +34,7 @@ When chatting with another user, a new AES key is exchanged securely using RSA e
 ### For Linux:
 
 1. Download the latest release from the provided link.
-	https://github.com/Neyronbite/CliChatClient/blob/master/Versions/CliChatClientRlease%201.0%20Linux.zip
+	https://github.com/Neyronbite/CliChatClient/blob/master/Versions/CliChatClientRelease%201.1%20Linux.zip
 2. Navigate to the folder where the file was downloaded.
 3. Add executable permissions to the `CliChatClient` file:
    ```bash
@@ -38,7 +44,7 @@ When chatting with another user, a new AES key is exchanged securely using RSA e
 
 ### For Windows:
 1. Download the latest release from the provided link.
-	https://github.com/Neyronbite/CliChatClient/blob/master/Versions/CliChatClientRelease%201.0.zip
+	https://github.com/Neyronbite/CliChatClient/blob/master/Versions/CliChatClientRelease%201.1%20Wind.zip
 2. Execute the CliChatClient.exe file from cmd.
 
 ## Usage
@@ -51,6 +57,7 @@ To run the application, you need to specify certain arguments.
 - `-u --username <username>`: Your username
 - `-s --server <server>`: The server to connect to (e.g., `my-server.com:5000`)
 - `-i --ignore-ssl`: Ignore SSL validation (use only if needed)
+- `--unicode`: Uses unicode encoding
 
 ### Example:
 
@@ -83,13 +90,13 @@ This will initiate a key exchange with `test_user` and send the message "hi".
 - **Up/Down Arrow**: Scroll through your message history.
 - **Page Up/Down**: Scroll up and down in the chat window.
 
+### Chat Commands:
+- `/add-group [user1] [user2] [...]`: Creates a temporary group chat with specified users. Entire conversation is end-to-end encrypted.
+
+
 ## Authorization
 
 Mi(j)Chat uses JWT (JSON Web Tokens) for authentication. Once logged in or registered, the server will provide a JWT to authenticate subsequent requests.
-
-## Acknowledgements
-
-This project was created for educational purposes. Thank you to the open-source community for providing libraries and tools that made this project possible.
 
 ---
 
