@@ -60,5 +60,7 @@ namespace CliChatClient.Services
         public string Server { get; set; }
         [Option('i', "ignore-ssl", Required = false, HelpText = "ignores ssl certificate issues")]
         public bool IgnoreSSL { get; set; }
+        [Option("unicode", Required = false, HelpText = "uses unicode encoding")]
+        public bool UseUnicode { get; set; }
     }
 }

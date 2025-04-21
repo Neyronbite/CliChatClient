@@ -134,8 +134,11 @@ Console.CancelKeyPress += new ConsoleCancelEventHandler((sender, e) =>
     var task = finalizingAction();
     Task.WaitAny(task);
 });
-Console.InputEncoding = System.Text.Encoding.Unicode;
-Console.OutputEncoding = System.Text.Encoding.Unicode;
+if (options.UseUnicode)
+{
+    Console.InputEncoding = System.Text.Encoding.Unicode;
+    Console.OutputEncoding = System.Text.Encoding.Unicode;
+}
 
 try
 {
@@ -175,6 +178,7 @@ try
                     case "add-group":
                         await messageService.CreateGroup(mArr[1..]);
                         break;
+                        //TODO del-user
                     default:
                         mainWin.SetError("wrong command");
                         break;
@@ -217,6 +221,11 @@ static List<MessageModel> CreateStartingMessages(Context context)
         {
             IsNotification = true,
             Message = $"You are logged to {context.BaseUrl} server"
+        },
+        new MessageModel()
+        {
+            IsNotification = true,
+            Message = $"/add-group [users] -> create temporary group for specified users"
         }
     };
 
