@@ -11,12 +11,9 @@ namespace CliChatClient.UI
     {
         private Action<string> handleUserInput;
 
-        private string error = string.Empty;
-        private string warning = string.Empty;
-
         private int width = Console.WindowWidth;
         private int height = Console.WindowHeight;
-        private int defaulMargin = 6;
+        private int defaulMargin = 3;
 
         // List to store messages
         private List<MessageModel> messages = new List<MessageModel>();
@@ -34,7 +31,6 @@ namespace CliChatClient.UI
         private bool toBeUpdated = true;
         private bool messagesToBeRerendered = true;
         private bool inputToBeRerendered = true;
-        private bool warningsToBeRendered = true;
 
         public MainWindow()
         {
@@ -74,7 +70,7 @@ namespace CliChatClient.UI
             // Infinite loop to simulate the chat interface
             while (true)
             {
-                if (toBeUpdated || warningsToBeRendered || inputToBeRerendered || messagesToBeRerendered)
+                if (toBeUpdated || inputToBeRerendered || messagesToBeRerendered)
                 {
                     Update();
                      
@@ -90,18 +86,14 @@ namespace CliChatClient.UI
             }
         }
 
-        public void SetWarning(string warning)
-        {
-            this.warning = warning;
-            toBeUpdated = true;
-            warningsToBeRendered = true;
-        }
-
         public void SetError(string error)
         {
-            this.error = error;
-            toBeUpdated = true;
-            warningsToBeRendered = true;
+            AddMessage(new MessageModel()
+            {
+                HasError = true,
+                Message = error,
+                From = ""
+            });
         }
 
         public void AddMessage(MessageModel message)
@@ -134,7 +126,6 @@ namespace CliChatClient.UI
                     height = Console.WindowHeight;
                     toBeUpdated = true;
                     messagesToBeRerendered = true;
-                    warningsToBeRendered = true;
                     inputToBeRerendered = true;
                     break;
                 // Scrolling (4 cases)
@@ -188,13 +179,6 @@ namespace CliChatClient.UI
             // Clear the console and redraw the UI
             //Console.Clear();
 
-            if (warningsToBeRendered) 
-            {
-                // Display warnings and errors at the top
-                DisplayWarnings();
-                warningsToBeRendered = false;
-            }
-
             if (messagesToBeRerendered)
             {
                 // Display messages (scrollable)
@@ -212,23 +196,6 @@ namespace CliChatClient.UI
             Console.SetCursorPosition(0, height - 1);
         }
 
-        // Display the warnings and errors at the top
-        private void DisplayWarnings()
-        {
-            //Clearing
-            Console.SetCursorPosition(0, 0);
-            Console.WriteLine(spaceArr);
-            Console.WriteLine(spaceArr);
-
-            //Printing
-            Console.SetCursorPosition(0, 0); // Move cursor to top
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"{warning}");
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"{error}");
-            Console.ResetColor();
-        }
-
         // Display the scrollable messages in the center
         private void DisplayMessages()
         {
@@ -236,37 +203,49 @@ namespace CliChatClient.UI
             int displayStart = Math.Max(0, scrollPosition - height + defaulMargin);
             var visibleMessages = messages.Skip(displayStart).Take(height - defaulMargin + 1);
 
-            // Start displaying messages at line 3 (after warnings/errors)
-            int yPos = 3;
+            // Start displaying messages at line 0
+            int yPos = 0;
             int currentY = yPos;
             Console.SetCursorPosition(0, yPos);
 
             foreach (var message in visibleMessages)
             {
-                if (!colors.TryGetValue(message.From, out var fromColor))
-                {
-                    fromColor = colorList[Random.Shared.Next(0, colorList.Count)];
-                    colors.Add(message.From, fromColor);
-                }
-                if (!colors.TryGetValue(message.To, out var toColor))
-                {
-                    toColor = colorList[Random.Shared.Next(0, colorList.Count)];
-                    colors.Add(message.To, toColor);
-                }
-
                 //Clearing
                 Console.WriteLine(spaceArr);
                 Console.SetCursorPosition(0, currentY);
 
-                //Printing
-                Console.ForegroundColor = fromColor;
-                Console.Write(message.From);
-                Console.ResetColor();
-                Console.Write(" -> ");
-                Console.ForegroundColor = toColor;
-                Console.Write(message.To);
-                Console.ResetColor();
-                Console.Write(": ");
+                // in message to or either from values can be null
+                // in case if we have error or notification for example
+                // so just checking if it's not null, printing
+                if (message.From != null)
+                {
+                    if (!colors.TryGetValue(message.From, out var fromColor))
+                    {
+                        fromColor = colorList[Random.Shared.Next(0, colorList.Count)];
+                        colors.Add(message.From, fromColor);
+                    }
+
+                    //Printing
+                    Console.ForegroundColor = fromColor;
+                    Console.Write(message.From);
+                    Console.ResetColor();
+                }
+
+                if (message.To != null)
+                {
+                    if (!colors.TryGetValue(message.To, out var toColor))
+                    {
+                        toColor = colorList[Random.Shared.Next(0, colorList.Count)];
+                        colors.Add(message.To, toColor);
+                    }
+
+                    //Printing
+                    Console.Write(" -> ");
+                    Console.ForegroundColor = toColor;
+                    Console.Write(message.To);
+                    Console.ResetColor();
+                    Console.Write(": ");
+                }
 
                 if (message.HasError)
                 {
@@ -314,3 +293,7 @@ namespace CliChatClient.UI
         }
     }
 }
+
+// TODO bugs
+// resizeic heto ete puchuracnum es ekrany u scroll es anum, error a tali
+// queuei vaxt errory gruma, bayc chi grum namaky, heto urish ban greluc hinna grum

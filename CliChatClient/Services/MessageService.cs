@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace CliChatClient.Services
@@ -28,7 +29,6 @@ namespace CliChatClient.Services
 
         Action<MessageModel> _displayMessage;
         Action<string> _displayError;
-        Action<string> _displayWarning;
 
         public MessageService(DataAccess dataAccess, Context context, HTTPService httpService)
         {
@@ -46,10 +46,9 @@ namespace CliChatClient.Services
             await _connection.StopAsync();
         }
 
-        public async Task Init(Action<MessageModel> displayMessage, Action<string> displayError, Action<string> displayWarning, List<MessageModel> queued)
+        public async Task Init(Action<MessageModel> displayMessage, Action<string> displayError, List<MessageModel> queued)
         {
             _displayError = displayError;
-            _displayWarning = displayWarning;
             _displayMessage = displayMessage;
 
             // SignalR connection options
@@ -79,7 +78,30 @@ namespace CliChatClient.Services
             // Define the handler for receiving messages
             _connection.On<string, string>("ReceiveMessage", async (user, message) =>
             {
-                if (!_userKey.UsersSymetricKeys.ContainsKey(user))
+                // Handling group message part
+                // Group messages come with specific user format
+                // groupid:username
+                if (Regex.IsMatch(user, @"^(\d{1,19}):(.+)$"))
+                {
+                    var groupId = user.Substring(0, user.IndexOf(':'));
+                    var fromUsername = user.Substring(user.IndexOf(":") + 1);
+
+                    if (!_userKey.UsersSymetricKeys.ContainsKey(groupId))
+                    {
+                        await RequireForgotenGroupKey(fromUsername, groupId);
+
+                        _queuedToBeDecryptedMessages.Add(new MessageModel() { From = fromUsername, To = groupId, Message = message });
+                    }
+                    else
+                    {
+                        var resultMessage = DecryptMessage(groupId, message);
+                        resultMessage.From = fromUsername;
+                        resultMessage.To = groupId;
+
+                        _displayMessage(resultMessage);
+                    }
+                }
+                else if (!_userKey.UsersSymetricKeys.ContainsKey(user))
                 {
                     await RequireForgotenPrivateKey(user);
 
@@ -154,6 +176,123 @@ namespace CliChatClient.Services
                 foreach (var message in userMessagesToBeDecrypted)
                 {
                     var decryptedMessageModel = DecryptMessage(user, message.Message);
+                    displayMessage(decryptedMessageModel);
+                    _queuedToBeDecryptedMessages.Remove(message);
+                }
+            });
+
+            // Handler that just creates new aes key for group
+            _connection.On<GroupKeyExchangeModel>("CreateGroup", (exchObj) =>
+            {
+                if (exchObj.ServerRequest)
+                {
+                    var key = AESEncryptionHelper.GenerateKey();
+
+                    if (_userKey.UsersSymetricKeys.ContainsKey(exchObj.GroupId))
+                    {
+                        _userKey.UsersSymetricKeys[exchObj.GroupId] = key;
+                    }
+                    else
+                    {
+                        _userKey.UsersSymetricKeys.Add(exchObj.GroupId, key);
+                    }
+
+                    _displayMessage(new MessageModel() { IsNotification = true, Message = "Group Created with group id -> " + exchObj.GroupId });
+                }
+            });
+
+            // Handler that handles group members key exchange
+            _connection.On<GroupKeyExchangeModel>("GroupKeyExchange", async (exchObj) =>
+            {
+                // if server says us to exchange key with group owner
+                if (exchObj.ServerRequest)
+                {
+                    var exchReqObj = new GroupKeyExchangeModel()
+                    {
+                        From = _context.LoggedUsername,
+                        To = exchObj.OwnerUsername,
+                        GroupId = exchObj.GroupId,
+                        ExchangeRequest = true
+                    };
+
+                    await _connection.InvokeAsync("GroupKeyExchange", exchReqObj);
+                    _displayMessage(new MessageModel() 
+                    { 
+                        From = exchObj.OwnerUsername, 
+                        IsNotification = true, 
+                        To = _context.LoggedUsername, 
+                        Message = "You are invited to a group with ID " + exchObj.GroupId 
+                    });
+                }
+                // If user wants group key, we send group key
+                if (exchObj.ExchangeRequest)
+                {
+                    if (_userKey.UsersSymetricKeys.ContainsKey(exchObj.GroupId))
+                    {
+                        await SendGroupPrivateKey(exchObj.From, _userKey.UsersSymetricKeys[exchObj.GroupId], exchObj.GroupId);
+
+                        // displaying message about key exchange
+                        _displayMessage(new MessageModel() { From = exchObj.GroupId, To = exchObj.From, Message = "Key exchange successfull", IsNotification = true });
+                    }
+                    else
+                    {
+                        // displaying error message when we don't found a key
+                        // why we don't use DisplayError function?
+                        // good question
+                        // because I want from and to fields to be displayed
+                        _displayMessage(new MessageModel() { From = exchObj.GroupId, To = exchObj.From, Message = "Key exchange failure, key not found", HasError = true });
+                    }
+                }
+                // If user sent new key, we add new key to _userKey object
+                else if (exchObj.ExchangeResponse)
+                {
+                    var keyDecoded = exchObj.PrivateKey.Decode();
+                    var keyDecrypted = _RSAEncryptionHelper.Decrypt(keyDecoded);
+
+                    if (_userKey.UsersSymetricKeys.ContainsKey(exchObj.GroupId))
+                    {
+                        _userKey.UsersSymetricKeys[exchObj.GroupId] = keyDecrypted;
+                    }
+                    else
+                    {
+                        _userKey.UsersSymetricKeys.Add(exchObj.GroupId, keyDecrypted);
+                    }
+
+                    // displaying message about key exchange
+                    _displayMessage(new MessageModel() { From = exchObj.GroupId, To = _context.LoggedUsername, Message = "Key exchange successfull", IsNotification = true });
+                }
+                // If user want old key
+                else if (exchObj.ForgotKeyRequest)
+                {
+                    if (_userKey.UsersSymetricKeys.ContainsKey(exchObj.GroupId))
+                    {
+                        // sending key
+                        await SendGroupPrivateKey(exchObj.From, _userKey.UsersSymetricKeys[exchObj.GroupId], exchObj.GroupId);
+                        // displaying message about key exchange
+                        _displayMessage(new MessageModel() { From = exchObj.GroupId, To = exchObj.From, Message = "Key exchange successfull", IsNotification = true });
+                    }
+                    else
+                    {
+                        // displaying error as we did before
+                        _displayMessage(new MessageModel() { From = exchObj.GroupId, To = exchObj.From, Message = "Key exchange failure, key not found", HasError = true });
+                    }
+
+                }
+
+                // Checking queued messages, if they exists, we send them
+                var groupQueuedMessages = _queuedToSendMessages.Where(m => m.To == exchObj.GroupId);
+
+                foreach (var message in groupQueuedMessages)
+                {
+                    await SendMessage(exchObj.GroupId, message.Message);
+                    _queuedToSendMessages.Remove(message);
+                }
+
+                var groupMessagesToBeDecrypted = _queuedToBeDecryptedMessages.Where(m => m.To == exchObj.GroupId);
+
+                foreach (var message in groupMessagesToBeDecrypted)
+                {
+                    var decryptedMessageModel = DecryptMessage(exchObj.GroupId, message.Message);
                     displayMessage(decryptedMessageModel);
                     _queuedToBeDecryptedMessages.Remove(message);
                 }
@@ -236,6 +375,16 @@ namespace CliChatClient.Services
         }
 
         /// <summary>
+        /// Sending create group to server
+        /// </summary>
+        /// <param name="users"></param>
+        /// <returns></returns>
+        public async Task CreateGroup(string[] users)
+        {
+            await _connection.InvokeAsync("CreateGroup", users);
+        }
+
+        /// <summary>
         /// Before using this function, check _userKey.UsersSymetricKeys[user]
         /// 
         /// decrypting user's message using exchanged private key
@@ -257,8 +406,6 @@ namespace CliChatClient.Services
 
                 var decodedMessage = message.Decode();
                 var decryptedMessage = aesHelper.Decrypt(decodedMessage);
-
-                //TODO message validation
 
                 resultMessage.Message = decryptedMessage;
                 resultMessage.From = user;
@@ -326,6 +473,25 @@ namespace CliChatClient.Services
         }
 
         /// <summary>
+        /// sending request to group member that sends message to send old AES key
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="groupId"></param>
+        /// <returns></returns>
+        private async Task RequireForgotenGroupKey(string user, string groupId)
+        {
+            var exchObj = new GroupKeyExchangeModel()
+            {
+                From = _context.LoggedUsername,
+                To = user,
+                GroupId = groupId,
+                ForgotKeyRequest = true
+            };
+
+            await _connection.InvokeAsync("GroupKeyExchange", exchObj);
+        }
+
+        /// <summary>
         /// generating new AES key
         /// encrypting it using user's public RSA key
         /// sending it
@@ -366,6 +532,29 @@ namespace CliChatClient.Services
             };
 
             await _connection.InvokeAsync("KeyExchange", keyExchange, user);
+        }
+
+        /// <summary>
+        /// encrypting, encoding and sending
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="key"></param>
+        /// <param name="groupId"></param>
+        /// <returns></returns>
+        private async Task SendGroupPrivateKey(string user, string key, string groupId)
+        {
+            var keyEncoded = await EncryptEncodeKey(user, key);
+
+            var exchObj = new GroupKeyExchangeModel()
+            {
+                ExchangeResponse = true,
+                PrivateKey = keyEncoded,
+                From = _context.LoggedUsername,
+                To = user,
+                GroupId = groupId
+            };
+
+            await _connection.InvokeAsync("GroupKeyExchange", exchObj);
         }
 
         /// <summary>
@@ -418,9 +607,10 @@ namespace CliChatClient.Services
 
             foreach (var item in messages)
             {
-                if (oldKeys.ContainsKey(item.From))
+                if (oldKeys.ContainsKey(item.From) || oldKeys.ContainsKey(item.To))
                 {
-                    var aes = new AESEncryptionHelper(oldKeys[item.From]);
+                    var key = oldKeys.ContainsKey(item.From) ? oldKeys[item.From] : oldKeys[item.To];
+                    var aes = new AESEncryptionHelper(key);
 
                     var decoded = item.Message.Decode();
 

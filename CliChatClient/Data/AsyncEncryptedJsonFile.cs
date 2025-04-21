@@ -12,7 +12,6 @@ namespace CliChatClient.Data
 {
     public class AsyncEncryptedJsonFile<T> : AsyncJsonFile<T>
     {
-        // TODO add semaphor for async work of 2 or more running apps
         protected string _password;
 
         // cashed file data. Ssring is unique id, and string is encrypted T object

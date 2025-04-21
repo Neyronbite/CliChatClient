@@ -140,15 +140,14 @@ Console.OutputEncoding = System.Text.Encoding.Unicode;
 try
 {
 
-    // queued messages
-    var messages = new List<MessageModel>();
+    // start and queued messages
+    var messages = CreateStartingMessages(context);
 
     // Initializing signal r communication service
     // Handling received message delivering to UI
     await messageService.Init(
         mainWin.AddMessage,
         mainWin.SetError,
-        mainWin.SetWarning,
         messages);
 
 
@@ -158,17 +157,35 @@ try
     {
         if (string.IsNullOrWhiteSpace(m))
         {
-            mainWin.SetWarning("Empty string input!!!");
+            mainWin.SetError("empty string input");
             return;
         }
 
         try
         {
-            // TODO validate m using regex
             var mArr = m.Split(' ');
-            var to = mArr[0];
-            var message = m.Replace(to + " ", "");
-            await messageService.SendMessage(to, message);
+
+            // commands starting with slash
+            if (mArr[0].StartsWith('/'))
+            {
+                mArr[0] = mArr[0].Substring(1);
+
+                switch (mArr[0])
+                {
+                    case "add-group":
+                        await messageService.CreateGroup(mArr[1..]);
+                        break;
+                    default:
+                        mainWin.SetError("wrong command");
+                        break;
+                }
+            }
+            else
+            {
+                var to = mArr[0];
+                var message = m.Replace(to + " ", "");
+                await messageService.SendMessage(to, message);
+            }
         }
         catch (Exception e)
         {
@@ -185,4 +202,23 @@ finally
 {
     var task = finalizingAction();
     Task.WaitAny(task);
+}
+
+static List<MessageModel> CreateStartingMessages(Context context)
+{
+    var list = new List<MessageModel>()
+    {
+        new MessageModel()
+        {
+            IsNotification = true,
+            Message = $"Welcome {context.LoggedUsername}"
+        },
+        new MessageModel()
+        {
+            IsNotification = true,
+            Message = $"You are logged to {context.BaseUrl} server"
+        }
+    };
+
+    return list;
 }

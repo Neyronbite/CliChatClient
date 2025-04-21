@@ -18,7 +18,6 @@ namespace CliChatClient.Data
         {
             _context = context;
 
-            //TODO use factory
             if (encrypt)
             {
                 UserKeys = new AsyncEncryptedJsonFile<UserKey>(context);
