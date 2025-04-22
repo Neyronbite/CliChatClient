@@ -34,7 +34,7 @@ When chatting with another user, a new AES key is exchanged securely using RSA e
 ### For Linux:
 
 1. Download the latest release from the provided link.
-	https://github.com/Neyronbite/CliChatClient/blob/master/Versions/CliChatClientRelease%201.1%20Linux.zip
+	[CliChatClientRelease-v1.1-Linux.zip](https://github.com/Neyronbite/CliChatClient/releases/download/v1.1-linux/CliChatClientRelease.1.1.Linux.zip)
 2. Navigate to the folder where the file was downloaded.
 3. Add executable permissions to the `CliChatClient` file:
    ```bash
@@ -44,7 +44,7 @@ When chatting with another user, a new AES key is exchanged securely using RSA e
 
 ### For Windows:
 1. Download the latest release from the provided link.
-	https://github.com/Neyronbite/CliChatClient/blob/master/Versions/CliChatClientRelease%201.1%20Wind.zip
+	[CliChatClientRelease-v1.1-wind.zip](https://github.com/Neyronbite/CliChatClient/releases/download/v1.1-wind/CliChatClientRelease.1.1.Wind.zip)
 2. Execute the CliChatClient.exe file from cmd.
 
 ## Usage
